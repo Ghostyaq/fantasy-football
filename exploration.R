@@ -11,7 +11,7 @@ for (row in 1:nrow(raw)) {
     
     mixed <- case_when(
         !is.na(i$safety) && i$safety != 0 ~ safety(i), # SAFETY
-        i$play_type == "extra_point" ~ extra_point(i), # EXTRA POINT
+        i$extra_point_result == "good" ~ extra_point(i), # EXTRA POINT
         i$pass_touchdown == 1 ~ pass_td(i), # QB 4 points RECIEVER 6 points
         i$complete_pass == 1 ~ successful_pass(i), # RECEPTION & 25 YARDS THROWN & 10 YARD RECEPTION
         i$interception == 1 ~ interception_off(i), # INTERCEPTION
