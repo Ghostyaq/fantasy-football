@@ -9,21 +9,19 @@ data <- data.frame()
 for (row in 1:nrow(raw)) {
     i <- raw[row, ]
     
-    blank <- if (!is.na(i$play_type) && i$play_type == "run") {
+    result <- case_when(
+        !is.na(i$safety) && i$safety != 0 ~ safety(i), # SAFETY
+        i$play_type == "extra_point" ~ extra_point(i), # EXTRA POINT
+        i$pass_touchdown == 1 ~ pass_td(i),
+        i$play_type == "pass" && i$yards_gained > 0 ~ successful_pass(i), # RECEPTION & 25 YARDS
+
+        
+    )
         data.frame(
-            rusher_id = i$rusher_player_id,
-            rusher_name = i$rusher_player_name,
-            rushing_yards = i$rushing_yards,
-            fantasy_id = i$fantasy_id
+            player_id = NA,
+            player_name = NA,
+            fantasy_points = NA
         )
-    } else {
-        data.frame(
-            rusher_id = NA,
-            rusher_name = NA,
-            rushing_yards = NA,
-            fantasy_id = NA
-        )
-    }
     
     data <- rbind(data, blank)
 }
