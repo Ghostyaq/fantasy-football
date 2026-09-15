@@ -10,23 +10,24 @@ for (row in 1:nrow(raw)) {
     i <- raw[row, ]
     
     mixed <- case_when(
-        !is.na(i$safety) && i$safety != 0 ~ safety(i), # SAFETY
-        i$extra_point_result == "good" ~ extra_point(i), # EXTRA POINT
-        i$pass_touchdown == 1 ~ pass_td(i), # QB 4 points RECIEVER 6 points
-        i$complete_pass == 1 ~ successful_pass(i), # RECEPTION & 25 YARDS THROWN & 10 YARD RECEPTION
-        i$interception == 1 ~ interception_off(i), # INTERCEPTION
-        i$play_type == "run" && i$yards_gained > 0 ~ successful_run(i), # RUN & TD
-        i$return_touchdown == 1 ~ return_td(i), # RETURN TOUCHDOWN WTF IS THIS
-        i$two_point_attempt == 1 ~ two_points(i), #  success / failure / safety
-        i$fumble == 1 && i$fumble_lost == 0 ~ fumble(i), # FUMBLE
+        !is.na(i$safety) & i$safety != 0 ~ safety(i), # SAFETY
+        !is.na(i$extra_point_result) & i$extra_point_result == "good" ~ extra_point(i), # EXTRA POINT
+        !is.na(i$pass_touchdown) & i$pass_touchdown == 1 ~ pass_td(i), # QB 4 points RECIEVER 6 points
+        !is.na(i$complete_pass) & i$complete_pass == 1 ~ successful_pass(i), # RECEPTION & 25 YARDS THROWN & 10 YARD RECEPTION
+        !is.na(i$interception) & i$interception == 1 ~ interception_off(i), # INTERCEPTION
+        !is.na(i$run_touchdown) & i$run_touchdown == 1 ~ run_td(i), # RUN TD
+        !is.na(i$play_type) & !is.na(i$yards_gained) & i$play_type == "run" & i$yards_gained > 0 ~ successful_run(i), # RUN & TD
+        !is.na(i$two_points_attempt) & i$return_touchdown == 1 ~ return_td(i), # RETURN TOUCHDOWN WTF IS THIS
+        !is.na(i$two_point_attempt) & i$two_point_attempt == 1 ~ two_points(i), #  success / failure / safety
+        !is.na(i$fumble) & i$fumble == 1 & i$fumble_lost == 0 ~ fumble(i), # FUMBLE
         .default = NULL
     )
     
     defense <- case_when(
-        i$sack == 1 ~ sack(i), #SACK
-        i$interception == 1 ~  interception_def(i), # DEFENSIVE INTERCEPTION
-        grepl("Punt blocked", i$desc) ~ punt_block(i), # PUNT BLOCK
-        field_goal_attempt == "blocked" ~ fg_block(i), # FIELD GOAL BLOCK
+        !is.na(i$sack) & i$sack == 1 ~ sack(i), #SACK
+        !is.na(i$interception) & i$interception == 1 ~  interception_def(i), # DEFENSIVE INTERCEPTION
+        !is.na(i$desc) & grepl("Punt blocked", i$desc) ~ punt_block(i), # PUNT BLOCK
+        !is.na(i$field_goal_attempt) & field_goal_attempt == "blocked" ~ fg_block(i), # FIELD GOAL BLOCK
         .default = NULL
     )
     
