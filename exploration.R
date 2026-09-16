@@ -21,7 +21,7 @@ for (row in 1:nrow(raw)) {
         successful_pass(i)
     } else if (!is.na(i$interception) & (i$interception == 1)) {
         interception_off(i)
-    } else if (!is.na(i$run_touchdown) & (i$run_touchdown == 1)) {
+    } else if (!is.na(i$rush_touchdown) & (i$rush_touchdown == 1)) {
         run_td(i)
     } else if (!is.na(i$play_type) & !is.na(i$yards_gained) & (i$play_type == "run") & (i$yards_gained > 0)) {
         successful_run(i)
@@ -41,16 +41,18 @@ for (row in 1:nrow(raw)) {
         interception_def(i)
     } else if (!is.na(i$desc) & grepl("Punt blocked", i$desc)) {
         punt_block(i)
-    } else if (!is.na(i$field_goal_attempt) & (field_goal_attempt == "blocked")) {
+    } else if (!is.na(i$field_goal_attempt) & (i$field_goal_attempt == "blocked")) {
         fg_block(i)
     } else {
         NULL
     }
     
-    game <- if(i$desc == "END GAME") ~ endgame_calcs(i),
-        TRUE ~ NULL
-    )
-    
+    game <- if (i$desc == "END GAME") {
+        endgame_calcs(i)
+    } else {
+        NULL
+    }
+
     combined <- rbind(mixed, defense, game)
     
     if (is.null(combined)) {
@@ -58,7 +60,8 @@ for (row in 1:nrow(raw)) {
             player_id = NA,
             player_name = NA,
             fantasy_points = NA,
-            play_type = NA
+            play_type = NA,
+            play_id = NA 
         )
     }
     
