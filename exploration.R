@@ -3,37 +3,52 @@ rm(list = ls())
 library(nflreadr)
 library(tidyverse)
 
+source("function-calculations.R")
+
 raw <- load_pbp(2026)
 data <- data.frame()
 
 for (row in 1:nrow(raw)) {
     i <- raw[row, ]
     
-    mixed <- case_when(
-        !is.na(i$safety) & i$safety != 0 ~ safety(i), # SAFETY
-        !is.na(i$extra_point_result) & i$extra_point_result == "good" ~ extra_point(i), # EXTRA POINT
-        !is.na(i$pass_touchdown) & i$pass_touchdown == 1 ~ pass_td(i), # QB 4 points RECIEVER 6 points
-        !is.na(i$complete_pass) & i$complete_pass == 1 ~ successful_pass(i), # RECEPTION & 25 YARDS THROWN & 10 YARD RECEPTION
-        !is.na(i$interception) & i$interception == 1 ~ interception_off(i), # INTERCEPTION
-        !is.na(i$run_touchdown) & i$run_touchdown == 1 ~ run_td(i), # RUN TD
-        !is.na(i$play_type) & !is.na(i$yards_gained) & i$play_type == "run" & i$yards_gained > 0 ~ successful_run(i), # RUN & TD
-        !is.na(i$two_points_attempt) & i$return_touchdown == 1 ~ return_td(i), # RETURN TOUCHDOWN WTF IS THIS
-        !is.na(i$two_point_attempt) & i$two_point_attempt == 1 ~ two_points(i), #  success / failure / safety
-        !is.na(i$fumble) & i$fumble == 1 & i$fumble_lost == 0 ~ fumble(i), # FUMBLE
-        .default = NULL
-    )
+    mixed <- if (!is.na(i$safety) & (i$safety != 0)) {
+        safety(i)
+    } else if (!is.na(i$extra_point_result) & (i$extra_point_result == "good")) {
+        extra_point(i)
+    } else if (!is.na(i$pass_touchdown) & (i$pass_touchdown == 1)) {
+        pass_td(i)
+    } else if (!is.na(i$complete_pass) & (i$complete_pass == 1)) {
+        successful_pass(i)
+    } else if (!is.na(i$interception) & (i$interception == 1)) {
+        interception_off(i)
+    } else if (!is.na(i$run_touchdown) & (i$run_touchdown == 1)) {
+        run_td(i)
+    } else if (!is.na(i$play_type) & !is.na(i$yards_gained) & (i$play_type == "run") & (i$yards_gained > 0)) {
+        successful_run(i)
+    } else if (!is.na(i$two_point_attempt) & (i$return_touchdown == 1)) {
+        return_td(i)
+    } else if (!is.na(i$two_point_attempt) & (i$two_point_attempt == 1)) {
+        two_points(i)
+    } else if (!is.na(i$fumble) & (i$fumble == 1) & (i$fumble_lost == 0)) {
+        fumble(i)
+    } else {
+        NULL
+    }
+        
+    defense <- if (!is.na(i$sack) & (i$sack == 1)) {
+        sack(i)
+    } else if (!is.na(i$interception) & (i$interception == 1)) {
+        interception_def(i)
+    } else if (!is.na(i$desc) & grepl("Punt blocked", i$desc)) {
+        punt_block(i)
+    } else if (!is.na(i$field_goal_attempt) & (field_goal_attempt == "blocked")) {
+        fg_block(i)
+    } else {
+        NULL
+    }
     
-    defense <- case_when(
-        !is.na(i$sack) & i$sack == 1 ~ sack(i), #SACK
-        !is.na(i$interception) & i$interception == 1 ~  interception_def(i), # DEFENSIVE INTERCEPTION
-        !is.na(i$desc) & grepl("Punt blocked", i$desc) ~ punt_block(i), # PUNT BLOCK
-        !is.na(i$field_goal_attempt) & field_goal_attempt == "blocked" ~ fg_block(i), # FIELD GOAL BLOCK
-        .default = NULL
-    )
-    
-    game <- case_when(
-        i$desc == "END GAME" ~ endgame_calcs(i),
-        .default = NULL
+    game <- if(i$desc == "END GAME") ~ endgame_calcs(i),
+        TRUE ~ NULL
     )
     
     combined <- rbind(mixed, defense, game)

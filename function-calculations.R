@@ -33,7 +33,7 @@ pass_td <- function(row) {
         play_type = "passed TD (receiver)"
     )
     
-    rbind(qb, receiever)
+    rbind(qb, receiver)
 }
 
 successful_pass <- function(row) {
@@ -91,18 +91,14 @@ return_td <- function(row) {
 }
 
 two_points <- function(row) {
-    if (row$two_point_conv_result == "failure") {
-        return(
-            data.frame(
-                player_id = NA, 
-                player_name = NA, 
-                fantasy_points = 0, 
-                play_type = "failed 2pts"
-                )
-        )
-    }
-    
-    if (!is.na(row$receiver_played_id)) {
+    return_df <- if (!is.na(row$two_point_conv_result) & row$two_point_conv_result == "failure") {
+        data.frame(
+            player_id = NA, 
+            player_name = NA, 
+            fantasy_points = 0, 
+            play_type = "failed 2pts"
+            )
+    } else if (!is.na(row$receiver_player_id)) {
         qb <- data.frame(
             player_id = row$passer_player_id,
             player_name = row$passer_player_name,
@@ -117,26 +113,24 @@ two_points <- function(row) {
             play_type = "pass 2pts (receiver)"
         )
         
-        return(rbind(qb, receiver))
-    }
-    
-    if (!is.na(row$rusher_player_id)) {
-        return(
-            data.frame(
-                player_id = row$rusher_player_id,
-                player_name = row$rusher_player_name,
-                fantasy_points = 2,
-                play_type = "pass 2pts (rusher)"
-            )
+        rbind(qb, receiver)
+    } else if (!is.na(row$rusher_player_id)) {
+        data.frame(
+            player_id = row$rusher_player_id,
+            player_name = row$rusher_player_name,
+            fantasy_points = 2,
+            play_type = "pass 2pts (rusher)"
+        )
+    } else {
+        data.frame(
+            player_id = 1,
+            player_name = NA,
+            fantasy_points = 0,
+            play_type = "wtf 2pts"
         )
     }
     
-    data.frame(
-        player_id = 1,
-        player_name = NA,
-        fantasy_points = 0,
-        play_type = "wtf 2pts"
-    )
+    return_df
 }
 
 fumble <- function(row) {
@@ -185,12 +179,7 @@ fg_block <- function(row) {
 }
 
 endgame_calcs <- function(row) {
-    data.frame(
-        player_id = row$def_team,
-        player_name = row$def_team
-    )
-    
-    temp <- function(off, def) {
+    temp <- function(def) {
         case_when(
             def == 0 ~ 10,
             def < 7 ~ 7,
@@ -201,4 +190,20 @@ endgame_calcs <- function(row) {
             def >= 35 ~ -4
         )
     }
+    
+    home <- data.frame(
+        player_id = 1,
+        player_name = row$home_team,
+        fantasy_points = temp(row$away_score),
+        play_type = "endgame (home defense)"
+    )
+    
+    away <- data.frame(
+        player_id = 1,
+        player_name = row$away_team,
+        fantasy_points = temp(row$home_score),
+        play_type = "endgame (away defense)"
+    )
+    
+    rbind(home, away)
 }
