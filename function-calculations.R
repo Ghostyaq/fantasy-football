@@ -24,7 +24,7 @@ pass_td <- function(row) {
     qb <- data.frame(
         player_id = row$passer_player_id,
         player_name = row$passer_player_name,
-        fantasy_points = 4,
+        fantasy_points = 4 + row$yards_gained / 25,
         play_type = "passed TD (QB)",
         play_id = paste0(row$game_id, "_", row$play_id)
     )
@@ -32,7 +32,7 @@ pass_td <- function(row) {
     receiver <- data.frame(
         player_id = row$receiver_player_id,
         player_name = row$receiver_player_name,
-        fantasy_points = 6,
+        fantasy_points = 6 + row$yards_gained / 10 + 1,
         play_type = "passed TD (receiver)",
         play_id = paste0(row$game_id, "_", row$play_id)
     )
@@ -44,7 +44,7 @@ successful_pass <- function(row) {
     qb <- data.frame(
         player_id = row$passer_player_id,
         player_name = row$passer_player_name,
-        fantasy_points = 1 + row$yards_gained / 25,
+        fantasy_points = row$yards_gained / 25,
         play_type = "pass (QB)",
         play_id = paste0(row$game_id, "_", row$play_id)
     )
@@ -53,7 +53,7 @@ successful_pass <- function(row) {
         player_id = row$receiver_player_id,
         player_name = row$receiver_player_name,
         fantasy_points = 1 + row$yards_gained / 10,
-        play_type = "passed TD (receiver)",
+        play_type = "pass (receiver)",
         play_id = paste0(row$game_id, "_", row$play_id)
     )
     
@@ -74,7 +74,7 @@ run_td <- function(row) {
     data.frame(
         player_id = row$rusher_player_id,
         player_name = row$rusher_player_name,
-        fantasy_points = 6,
+        fantasy_points = 6 + row$yards_gained / 10,
         play_type = "rushed TD",
         play_id = paste0(row$game_id, "_", row$play_id)
     )

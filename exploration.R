@@ -29,7 +29,7 @@ for (row in 1:nrow(raw)) {
         return_td(i)
     } else if (!is.na(i$two_point_attempt) & (i$two_point_attempt == 1)) {
         two_points(i)
-    } else if (!is.na(i$fumble) & (i$fumble == 1) & (i$fumble_lost == 0)) {
+    } else if (!is.na(i$fumble) & (i$fumble == 1) & (i$fumble_lost == 1)) {
         fumble(i)
     } else {
         NULL
