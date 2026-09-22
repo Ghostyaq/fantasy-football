@@ -92,7 +92,7 @@ successful_run <- function(row) {
 
 return_td <- function(row) {
     data.frame(
-        player_id = 0,
+        player_id = 'team',
         player_name = row$defteam,
         fantasy_points = 6,
         play_type = "return TD",
@@ -137,7 +137,7 @@ two_points <- function(row) {
         )
     } else {
         data.frame(
-            player_id = 1,
+            player_id = 'nani',
             player_name = NA,
             fantasy_points = 0,
             play_type = "wtf 2pts",
@@ -160,7 +160,7 @@ fumble <- function(row) {
 
 sack <- function(row) {
     data.frame(
-        player_id = 0,
+        player_id = 'team',
         player_name = row$defteam,
         fantasy_points = 1,
         play_type = "sack",
@@ -170,7 +170,7 @@ sack <- function(row) {
 
 interception_def <- function(row) {
     data.frame(
-        player_id = 0,
+        player_id = 'team',
         player_name = row$defteam,
         fantasy_points = 2,
         play_type = "interception (defense)",
@@ -180,7 +180,7 @@ interception_def <- function(row) {
 
 punt_block <- function(row) {
     data.frame(
-        player_id = 0,
+        player_id = 'team',
         player_name = row$defteam,
         fantasy_points = 2,
         play_type = "punt block",
@@ -190,7 +190,7 @@ punt_block <- function(row) {
 
 fg_block <- function(row) {
     data.frame(
-        player_id = 0,
+        player_id = 'team',
         player_name = row$defteam,
         fantasy_points = 2,
         play_type = "fg block",
@@ -212,7 +212,7 @@ endgame_calcs <- function(row) {
     }
     
     home <- data.frame(
-        player_id = 1,
+        player_id = 'home',
         player_name = row$home_team,
         fantasy_points = temp(row$away_score),
         play_type = "endgame (home defense)",
@@ -220,7 +220,7 @@ endgame_calcs <- function(row) {
     )
     
     away <- data.frame(
-        player_id = 1,
+        player_id = 'away',
         player_name = row$away_team,
         fantasy_points = temp(row$home_score),
         play_type = "endgame (away defense)",
@@ -228,4 +228,74 @@ endgame_calcs <- function(row) {
     )
     
     rbind(home, away)
+}
+
+mh <- function(year) {
+    raw <- load_pbp(year)
+    data <- pblapply(split(raw, seq_len(nrow(raw))), function(i) {
+        mixed <- if (!is.na(i$safety) & (i$safety != 0)) {
+            safety(i)
+        } else if (!is.na(i$extra_point_result) & (i$extra_point_result == "good")) {
+            extra_point(i)
+        } else if (!is.na(i$pass_touchdown) & (i$pass_touchdown == 1)) {
+            pass_td(i)
+        } else if (!is.na(i$complete_pass) & (i$complete_pass == 1)) {
+            successful_pass(i)
+        } else if (!is.na(i$interception) & (i$interception == 1)) {
+            interception_off(i)
+        } else if (!is.na(i$rush_touchdown) & (i$rush_touchdown == 1)) {
+            run_td(i)
+        } else if (!is.na(i$play_type) & !is.na(i$yards_gained) & (i$play_type == "run") & (i$yards_gained > 0)) {
+            successful_run(i)
+        } else if (!is.na(i$two_point_attempt) & (i$two_point_attempt == 1)) {
+            two_points(i)
+        } else {
+            NULL
+        }
+        
+        fumbles <- if (!is.na(i$fumble)&(i$fumble==1)&(i$fumble_lost==1)) {
+            fumble(i) 
+        } else {
+            NULL
+        }
+        
+        returns <- if (!is.na(i$return_touchdown) & (i$return_touchdown == 1)) {
+            return_td(i)
+        } else {
+            NULL
+        }
+        
+        defense <- if (!is.na(i$sack) & (i$sack == 1)) {
+            sack(i)
+        } else if (!is.na(i$interception) & (i$interception == 1)) {
+            interception_def(i)
+        } else if (!is.na(i$punt_blocked) & (i$punt_blocked == 1)) {
+            punt_block(i)
+        } else if (!is.na(i$field_goal_result) & (i$field_goal_result == "blocked")) {
+            fg_block(i)
+        } else {
+            NULL
+        }
+        
+        game <- if (!is.na(i$desc) & (i$desc == "END GAME")) {
+            endgame_calcs(i)
+        } else {
+            NULL
+        }
+        
+        combined <- rbind(mixed, fumbles, returns, defense, game)
+        
+        if (is.null(combined)) {
+            combined <- data.frame(
+                player_id = NA,
+                player_name = NA,
+                fantasy_points = NA,
+                play_type = NA,
+                play_id = NA 
+            )
+        }
+        
+        combined$year <- rep(year, nrow(combined))
+        return(combined)
+    }, cl = cl)
 }
