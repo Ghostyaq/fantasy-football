@@ -54,7 +54,14 @@ b <- summary |>
     drop_na()
 
 # ---- PLAYER STATS ---- 
+library(glmnet)
+library(randomForest)
+library(e1071)
+library(pls)
+library(scales)
 library(nnet)
+library(minpack.lm)
+library(MASS)
 
 year <- 2025
 
@@ -67,9 +74,7 @@ age <- load_players() |>
     filter(last_season >= year) |>
     select(gsis_id, years_of_experience, draft_pick) |>
     rename(player_id = gsis_id, experience = years_of_experience) |>
-    mutate(
-        experience = experience - (2026 - year)
-    )
+    mutate(experience = experience - (2026 - year))
 
 injuries <- map_dfr((year - 3) : year, load_injuries) |>
     group_by(gsis_id, season) |>
@@ -95,7 +100,7 @@ names(data) <- sub(paste0("_", year - 3, "$"), "_3", names(data))
 nn_model <- nnet(
     points_0 ~ (
         position_group_0 + count_3 + count_2 + count_1 + points_3 + 
-        points_2 + points_1 #+ #experience #+ draft_pick
+        points_2 + points_1 + experience + draft_pick
         ),
     data = data, 
     size = 10,      # hidden neurons
@@ -105,5 +110,62 @@ nn_model <- nnet(
     trace = TRUE
 )
 
-temp <- predict(nn_model, data)
-data$prediction <- temp 
+forest_model <- randomForest(
+    points_0 ~ position_group_0 + count_3 + count_2 + count_1 + points_3 + 
+        points_2 + points_1 + experience + draft_pick,
+    data = data, ntree = 500, mtry = 2, importance = TRUE
+)
+
+linear_model <- lm(
+    points_0 ~ (points_3 + points_2 + points_1),
+    data = data
+    )
+
+lda_model <- lda(
+    points_0 ~ (points_3 + points_2 + points_1),
+    data = data
+)
+
+svr_model <- svm(
+    points_0 ~ (points_3 + points_2 + points_1),
+    data = data, type = "eps-regression", kernel = "radial"
+)
+
+
+plsr_model <- plsr(
+    points_0 ~ (points_3 + points_2 + points_1),
+    data = data,
+    validation = "LOO",
+    scale = FALSE
+)
+
+
+nn_result <- predict(nn_model, data)
+rf_result <- predict(forest_model, data)
+lm_result <- predict(linear_model, data)
+lda_result <- predict(lda_model, data)$class
+svr_result <- predict(svr_model, data)
+plsr_result <- predict(plsr_model, data)
+
+
+data$prediction_nn <- nn_result
+data$prediction_rf <- rf_result
+data$prediction_lm <- lm_result
+data$prediction_lda <- lda_result
+data$prediction_svr <- svr_result
+data$prediction_plsr <- as.data.frame(plsr_result)$`points_0.3 comps`
+
+data <- data |>
+    rowwise() |>
+    mutate(
+        prediction_max = max(prediction_nn, prediction_rf)
+    )
+
+model_metrics <- function(actual, predicted) {
+    rmse <- sqrt(mean((actual - predicted) ^ 2))
+    mae <- mean(abs(actual - predicted))
+    r2 <- 1 - sum((actual - predicted) ^ 2) / sum((actual - mean(actual)) ^ 2)
+    data.frame(RMSE = rmse, MAE = mae, R2 = r2)
+}
+
+c <- model_metrics(data$count_0, data$prediction_lm)
