@@ -46,50 +46,62 @@ a <- summary |>
 
 b <- summary |>
     pivot_longer(
-        cols = c("2022", "2023", "2024", "2025"),
-        names_to = "year",
+        cols = c("2022", "2023", "2024", "2025", "2026"),
+        names_to = "season",
         values_to = "points"
     ) |>
-    mutate(year = as.numeric(year)) |>
+    mutate(season = as.numeric(season)) |>
     drop_na()
-
-cor(b$year, b$points)
-
 
 # ---- PLAYER STATS ---- 
 library(nnet)
 
-data <- map_dfr(2022:2025, load_player_stats) |>
+year <- 2025
+
+data <- map_dfr((year - 3) : year, load_player_stats) |>
     select(player_id, player_display_name, position_group, season) |>
     filter(!(position_group %in% c("DL", "DB", "LB", "OL"))) |>
     unique()
 
-injuries <- map_dfr(2022:2025, load_injuries) |>
+age <- load_players() |>
+    filter(last_season >= year) |>
+    select(gsis_id, years_of_experience, draft_pick) |>
+    rename(player_id = gsis_id, experience = years_of_experience) |>
+    mutate(
+        experience = experience - (2026 - year)
+    )
+
+injuries <- map_dfr((year - 3) : year, load_injuries) |>
     group_by(gsis_id, season) |>
     summarise(count = n()) |>
     rename(player_id = gsis_id)
 
 data <- data |>
     left_join(injuries, by = c("player_id", "season")) |>
+    left_join(b, by = c("player_id", "season")) |>
+    mutate(across(everything(), function(i) {i <- ifelse(is.na(i), 0, i)})) |>
     pivot_wider(
-        names_from = season,
-        values_from = c("position_group", "count")
+        names_from = "season",
+        values_from = c("position_group", "count", "points"),
     ) |>
-    left_join(summary, by = "player_id") |>
-    drop_na(`2025`) |>
-    mutate(across(everything(), function(i) {i <- ifelse(is.na(i), 0, i)}))
+    left_join(age, by = "player_id") |>
+    na.omit(position_group_2025)
+
+names(data) <- sub(paste0("_", year, "$"), "_0", names(data))
+names(data) <- sub(paste0("_", year - 1, "$"), "_1", names(data))
+names(data) <- sub(paste0("_", year - 2, "$"), "_2", names(data))
+names(data) <- sub(paste0("_", year - 3, "$"), "_3", names(data))
 
 nn_model <- nnet(
-    `2025` ~ (
-        position_group_2022 + position_group_2023 + position_group_2024 + 
-        position_group_2025 + count_2022 + count_2023 + count_2024 + `2022` + 
-        `2023` + `2024`
+    points_0 ~ (
+        position_group_0 + count_3 + count_2 + count_1 + points_3 + 
+        points_2 + points_1 #+ #experience #+ draft_pick
         ),
     data = data, 
-    size = 6,      # hidden neurons
+    size = 10,      # hidden neurons
     linout = TRUE, # regression instead of classification
     decay = 0.01,  # weight decay to reduce overfitting
-    maxit = 5000,
+    maxit = 10000,
     trace = TRUE
 )
 
