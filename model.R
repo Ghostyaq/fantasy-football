@@ -32,12 +32,12 @@ summary <- results |>
         names_from = "year",
         values_from = "points"
     ) |>
-    select(c(player_id, "2022", "2023", "2024", "2025", "2026"))
+    dplyr::select(player_id, `2022`, `2023`, `2024`, `2025`, `2026`)
 players <- load_player_stats(2026)
 
 fantasy_players <- players |>
     filter(!(position_group %in% c("DL", "DB", "LB", "OL"))) |>
-    select(c("player_id", "player_display_name", "position", "team")) |>
+    dplyr::select(c("player_id", "player_display_name", "position", "team")) |>
     unique()
 
 a <- summary |>
@@ -63,20 +63,20 @@ library(nnet)
 library(minpack.lm)
 library(MASS)
 
-year <- 2025
+train_year <- 2025
 
-data <- map_dfr((year - 3) : year, load_player_stats) |>
-    select(player_id, player_display_name, position_group, season) |>
+data <- map_dfr(2022:2026, load_player_stats) |>
+    dplyr::select(player_id, player_display_name, position_group, season) |>
     filter(!(position_group %in% c("DL", "DB", "LB", "OL"))) |>
     unique()
 
 age <- load_players() |>
-    filter(last_season >= year) |>
-    select(gsis_id, years_of_experience, draft_pick) |>
+    filter(last_season >= train_year) |>
+    dplyr::select(gsis_id, years_of_experience, draft_pick) |>
     rename(player_id = gsis_id, experience = years_of_experience) |>
-    mutate(experience = experience - (2026 - year))
+    mutate(experience = experience - (2026 - train_year))
 
-injuries <- map_dfr((year - 3) : year, load_injuries) |>
+injuries <- map_dfr(2022:2026, load_injuries) |>
     group_by(gsis_id, season) |>
     summarise(count = n()) |>
     rename(player_id = gsis_id)
@@ -89,20 +89,30 @@ data <- data |>
         names_from = "season",
         values_from = c("position_group", "count", "points"),
     ) |>
-    left_join(age, by = "player_id") |>
+    left_join(age, by = "player_id")
+
+train_data <- data |>
     na.omit(position_group_2025)
 
-names(data) <- sub(paste0("_", year, "$"), "_0", names(data))
-names(data) <- sub(paste0("_", year - 1, "$"), "_1", names(data))
-names(data) <- sub(paste0("_", year - 2, "$"), "_2", names(data))
-names(data) <- sub(paste0("_", year - 3, "$"), "_3", names(data))
+test_data <- data |>
+    na.omit(position_group_2026)
+
+names(train_data) <- sub(paste0("_", train_year, "$"), "_0", names(train_data))
+names(train_data) <- sub(paste0("_", train_year - 1, "$"), "_1", names(train_data))
+names(train_data) <- sub(paste0("_", train_year - 2, "$"), "_2", names(train_data))
+names(train_data) <- sub(paste0("_", train_year - 3, "$"), "_3", names(train_data))
+
+names(test_data) <- sub(paste0("_", 2026, "$"), "_0", names(test_data))
+names(test_data) <- sub(paste0("_", 2025, "$"), "_1", names(test_data))
+names(test_data) <- sub(paste0("_", 2024, "$"), "_2", names(test_data))
+names(test_data) <- sub(paste0("_", 2023, "$"), "_3", names(test_data))
 
 nn_model <- nnet(
     points_0 ~ (
         position_group_0 + count_3 + count_2 + count_1 + points_3 + 
         points_2 + points_1 + experience + draft_pick
         ),
-    data = data, 
+    data = train_data, 
     size = 10,      # hidden neurons
     linout = TRUE, # regression instead of classification
     decay = 0.01,  # weight decay to reduce overfitting
@@ -113,49 +123,45 @@ nn_model <- nnet(
 forest_model <- randomForest(
     points_0 ~ position_group_0 + count_3 + count_2 + count_1 + points_3 + 
         points_2 + points_1 + experience + draft_pick,
-    data = data, ntree = 500, mtry = 2, importance = TRUE
+    data = train_data, ntree = 500, mtry = 2, importance = TRUE
 )
 
 linear_model <- lm(
     points_0 ~ (points_3 + points_2 + points_1),
-    data = data
+    data = train_data
     )
 
 lda_model <- lda(
     points_0 ~ (points_3 + points_2 + points_1),
-    data = data
+    data = train_data
 )
 
 svr_model <- svm(
     points_0 ~ (points_3 + points_2 + points_1),
-    data = data, type = "eps-regression", kernel = "radial"
+    data = train_data, type = "eps-regression", kernel = "radial"
 )
 
 
 plsr_model <- plsr(
     points_0 ~ (points_3 + points_2 + points_1),
-    data = data,
-    validation = "LOO",
-    scale = FALSE
+    data = train_data, validation = "LOO", scale = FALSE
 )
 
+nn_result <- predict(nn_model, test_data)
+rf_result <- predict(forest_model, test_data)
+lm_result <- predict(linear_model, test_data)
+lda_result <- predict(lda_model, test_data)$class
+svr_result <- predict(svr_model, test_data)
+plsr_result <- predict(plsr_model, test_data)
 
-nn_result <- predict(nn_model, data)
-rf_result <- predict(forest_model, data)
-lm_result <- predict(linear_model, data)
-lda_result <- predict(lda_model, data)$class
-svr_result <- predict(svr_model, data)
-plsr_result <- predict(plsr_model, data)
+test_data$prediction_nn <- nn_result
+test_data$prediction_rf <- rf_result
+test_data$prediction_lm <- lm_result
+test_data$prediction_lda <- lda_result
+test_data$prediction_svr <- svr_result
+test_data$prediction_plsr <- as.data.frame(plsr_result)$`points_0.3 comps`
 
-
-data$prediction_nn <- nn_result
-data$prediction_rf <- rf_result
-data$prediction_lm <- lm_result
-data$prediction_lda <- lda_result
-data$prediction_svr <- svr_result
-data$prediction_plsr <- as.data.frame(plsr_result)$`points_0.3 comps`
-
-data <- data |>
+test_data <- test_data |>
     rowwise() |>
     mutate(
         prediction_max = max(prediction_nn, prediction_rf)
